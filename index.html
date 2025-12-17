@@ -998,46 +998,25 @@
 
                 let finalUrl = url;
 
-                if (isClassplusUrl) {
-                    if (url.includes('/drm')) {
-                        updateContentTypeDisplay('drm');
-                        const drmApiUrl = `https://itsvchoudharydrm.vercel.app/api?url=${encodeURIComponent(url)}&auth=@veerjaatoffline`;
-                        const drmResponse = await fetch(drmApiUrl);
-                        const drmData = await drmResponse.json();
+                if (url.includes('/drm')) {
+                    updateContentTypeDisplay('drm');
+                    const drmApiUrl = `https://itsvchoudharydrm.vercel.app/api?url=${encodeURIComponent(url)}&auth=@veerjaatoffline`;
+                    const drmResponse = await fetch(drmApiUrl);
+                    const drmData = await drmResponse.json();
 
-                        if (!drmData.KEYS || !drmData.MPD) {
-                            showError('❌ DRM data missing - cannot play video.');
-                            hideLoading();
-                            return;
-                        }
-
-                        await loadDRMVideo(drmData.MPD, drmData.KEYS);
-                    } else {
-                        updateContentTypeDisplay('hls');
-                        const signApiUrl = `/get_signed_url?url=${encodeURIComponent(url)}`;
-                        const signResponse = await fetch(signApiUrl);
-                        const signData = await signResponse.json();
-
-                        if (!signData.signed_url) {
-                            showError('❌ Failed to get signed URL.');
-                            hideLoading();
-                            return;
-                        }
-
-                        finalUrl = signData.signed_url;
-                        if (isM3U8) {
-                            await loadHLSVideo(finalUrl);
-                        } else {
-                            video.src = finalUrl;
-                        }
+                    if (!drmData.KEYS || !drmData.MPD) {
+                        showError('❌ DRM data missing - cannot play video.');
+                        hideLoading();
+                        return;
                     }
+
+                    await loadDRMVideo(drmData.MPD, drmData.KEYS);
+                } else if (isM3U8) {
+                    updateContentTypeDisplay('hls');
+                    await loadHLSVideo(finalUrl);
                 } else {
                     updateContentTypeDisplay('direct');
-                    if (isM3U8) {
-                        await loadHLSVideo(finalUrl);
-                    } else {
-                        video.src = finalUrl;
-                    }
+                    video.src = finalUrl;
                 }
 
                 try {
