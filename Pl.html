@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>𝚅𝚎𝚎𝚛 𝙹𝚊𝚊𝚝</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.0/dist/shaka-player.compiled.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+            height: 100dvh;
+            /* Dynamic viewport height for mobile */
+        }
+
+        .player {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            /* Dynamic viewport height for mobile */
+            background: #000;
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* 1. Auto Hide Controls */
+        /* Use CSS transition for smooth hiding/showing of controls and overlay */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            /* Adjusted gradient for better fade effect */
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.7) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.5) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .player.show-controls .overlay {
+            opacity: 1;
+        }
+
+        .header {
+            position: absolute;
+            top: max(20px, env(safe-area-inset-top));
+            left: max(20px, env(safe-area-inset-left));
+            right: max(20px, env(safe-area-inset-right));
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .player.show-controls .header {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(45deg, #ff6b6b, #ffa86b, #ffd56b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .content-type {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .tg-btn {
+            background: linear-gradient(135deg, #0088cc, #00aaff);
+            border: none;
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            transition: transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tg-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: env(safe-area-inset-bottom, 0px);
+            left: 0;
+            right: 0;
+            padding: 30px max(20px, env(safe-area-inset-left)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-right));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+        }
+
+        .player.show-controls .controls {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .progress {
+            width: 100%;
+            height: 6px; /* Increased height for better interaction */
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ffa500);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        
+        /* Progress Marker for user interaction */
+        .progress-marker {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 12px;
+            height: 12px;
+            background: #ffa500;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+        }
+
+        .progress:hover .progress-marker {
+            display: block;
+        }
+
+        .main-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Added premium/arrow styling for icon */
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.5); /* Premium glow */
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: 0 0 15px rgba(255, 107, 107, 0.8);
+        }
+
+        .play-btn {
+            width: 50px;
+            height: 50px;
+            font-size: 22px; /* Increased icon size */
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.8);
+        }
+
+        .ctrl-btn {
+            width: 40px;
+            height: 40px;
+            font-size: 18px; /* Increased icon size */
+        }
+
+        /* Style for the jump button to make it distinct */
+        .jump-btn {
+            background: linear-gradient(135deg, #4CAF50, #8BC34A);
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+        }
+
+        .jump-btn:hover {
+             background: linear-gradient(135deg, #45a049, #80b445);
+             box-shadow: 0 0 15px rgba(76, 175, 80, 0.8);
+        }
+        
+        /* Volume Button Styling */
+        .volume-btn {
+            background: linear-gradient(135deg, #5DADE2, #85C1E9);
+            box-shadow: 0 0 10px rgba(93, 173, 226, 0.5);
+        }
+        .volume-btn:hover {
+            background: linear-gradient(135deg, #5499C7, #76A6CC);
+            box-shadow: 0 0 15px rgba(93, 173, 226, 0.8);
+        }
+        
+        /* Speed Button Styling */
+        .speed-btn {
+            background: linear-gradient(135deg, #AF7AC5, #D2B4DE);
+            box-shadow: 0 0 10px rgba(175, 122, 197, 0.5);
+        }
+        .speed-btn:hover {
+            background: linear-gradient(135deg, #9C67B0, #B8A3C5);
+            box-shadow: 0 0 15px rgba(175, 122, 197, 0.8);
+        }
+        
+        /* Progress Percentage & Time Display */
+        .time {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+            min-width: 120px; /* Increased width to accommodate percentage */
+            text-align: left;
+            font-weight: 500;
+        }
+        
+        /* Custom arrow/skip button styling */
+        .skip-btn i {
+            font-size: 16px;
+            /* Using standard arrow icons, can be enhanced with premium font icons */
+        }
+        .skip-btn:nth-child(2) i {
+             /* Double arrows for 10s back */
+             content: '\f04a\f04a'; 
+        }
+        .skip-btn:nth-child(3) i {
+             /* Double arrows for 10s forward */
+             content: '\f04e\f04e';
+        }
+        
+        .spacer {
+            flex: 1;
+        }
+        
+        /* Existing loading/error/menu styles remain the same */
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .dot-loader {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .dot-loader span {
+            width: 12px;
+            height: 12px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounce 0.6s infinite alternate;
+        }
+
+        .dot-loader span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .dot-loader span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            0% {
+                transform: translateY(0);
+            }
+
+            100% {
+                transform: translateY(-15px);
+            }
+        }
+
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+        }
+
+        .error i {
+            font-size: 48px;
+            color: #ff6b6b;
+            margin-bottom: 15px;
+        }
+
+        .menu {
+            position: absolute;
+            bottom: 60px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 8px;
+            padding: 8px 0;
+            min-width: 120px;
+            backdrop-filter: blur(10px);
+            display: none;
+            z-index: 10; /* Ensure menu is above other controls */
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+        
+        /* New style for the jump input */
+        .jump-input {
+            width: 150px;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .jump-input:focus {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .jump-menu {
+            right: 0; /* Position menu above jump button */
+            bottom: 60px;
+            padding: 10px;
+        }
+
+        .menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .menu-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .menu-item.active {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        
+        /* Volume Slider Styles */
+        .volume-slider-container {
+             position: absolute;
+             bottom: 50px;
+             left: -10px; /* Adjust position relative to the button */
+             padding: 10px 0;
+             background: rgba(0, 0, 0, 0.8);
+             border-radius: 8px;
+             display: none;
+             z-index: 10;
+        }
+        .volume-slider {
+            -webkit-appearance: none;
+            width: 100px;
+            height: 5px;
+            background: #d3d3d3;
+            outline: none;
+            opacity: 0.7;
+            -webkit-transition: .2s;
+            transition: opacity .2s;
+            transform: rotate(-90deg) translateX(-100%); /* Rotate for vertical display */
+            transform-origin: left bottom;
+            margin: 55px 0 55px 20px; /* Adjust margin for proper centering after rotation */
+        }
+        .volume-slider:hover {
+            opacity: 1;
+        }
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            cursor: pointer;
+        }
+        .volume-slider::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            cursor: pointer;
+        }
+        
+        /* Double-tap/click overlay for skip (Premium Sticker/Arrow) */
+        .skip-overlay {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 35%; /* Left and Right third of the video area */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            pointer-events: none; /* Allows clicks to go through to video */
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            text-shadow: 0 0 10px rgba(255, 107, 107, 1);
+        }
+        .skip-overlay.active {
+            opacity: 1;
+        }
+        .skip-left {
+            left: 0;
+        }
+        .skip-right {
+            right: 0;
+        }
+
+        .tg-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #0088cc, #00aaff);
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .player.paused .tg-overlay {
+            display: flex;
+        }
+
+        .tg-overlay:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+
+        /* Toast Notification Styles */
+        /* ... (Toast styles remain the same) */
+        .toast {
+            position: fixed;
+            top: max(20px, env(safe-area-inset-top));
+            right: max(20px, env(safe-area-inset-right));
+            background: linear-gradient(135deg, #0088cc, #00aaff);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 136, 204, 0.3);
+            font-size: 14px;
+            font-weight: 500;
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 9999;
+            max-width: 280px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast .icon {
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .toast .close-btn {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            font-size: 16px;
+            margin-left: auto;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+
+        .toast .close-btn:hover {
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+             /* ... (media queries remain the same) */
+            .controls {
+                padding: 20px max(15px, env(safe-area-inset-left)) max(15px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-right));
+            }
+
+            .main-controls {
+                gap: 10px;
+            }
+
+            .play-btn {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .ctrl-btn {
+                width: 35px;
+                height: 35px;
+                font-size: 14px;
+            }
+
+            .time {
+                font-size: 12px;
+                min-width: 100px; /* Adjusted */
+            }
+
+            .header {
+                top: max(15px, env(safe-area-inset-top));
+                left: max(15px, env(safe-area-inset-left));
+                right: max(15px, env(safe-area-inset-right));
+            }
+
+            .title {
+                font-size: 16px;
+            }
+
+            .tg-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            .toast {
+                top: max(15px, env(safe-area-inset-top));
+                right: max(15px, env(safe-area-inset-right));
+                max-width: 260px;
+                font-size: 13px;
+            }
+        }
+
+        /* Additional mobile fixes */
+        @media (max-width: 480px) {
+             /* ... (media queries remain the same) */
+            .controls {
+                padding: 15px max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-right));
+            }
+
+            .main-controls {
+                gap: 8px;
+            }
+
+            .play-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            .ctrl-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 13px;
+            }
+
+            .time {
+                font-size: 11px;
+                min-width: 90px; /* Adjusted */
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="player" id="player">
+        <video id="video" playsinline webkit-playsinline preload="metadata"></video>
+        
+        <div class="skip-overlay skip-left" id="skipLeft">
+             <i class="fas fa-undo-alt"></i> 10s
+        </div>
+        <div class="skip-overlay skip-right" id="skipRight">
+             10s <i class="fas fa-redo-alt"></i>
+        </div>
+
+        <div class="overlay"></div>
+
+        <div class="header">
+            <div style="display: flex; align-items: center;">
+                <div class="title">𝚅𝚎𝚎𝚛 𝙹𝚊𝚊𝚝</div>
+                <div class="content-type" id="contentType" style="display: none;"></div>
+            </div>
+            <button class="tg-btn" onclick="openTelegram()">
+                <i class="fab fa-telegram"></i>
+            </button>
+        </div>
+
+        <div class="tg-overlay" onclick="openTelegram()">
+            <i class="fab fa-telegram"></i>
+        </div>
+
+        <div class="controls">
+            <div class="progress" id="progress">
+                <div class="progress-fill" id="progressFill"></div>
+                <div class="progress-marker" id="progressMarker"></div>
+            </div>
+
+            <div class="main-controls">
+                <button class="btn play-btn" id="playBtn">
+                    <i class="fas fa-play"></i>
+                </button>
+
+                <button class="btn ctrl-btn skip-btn" onclick="seek(-10)">
+                    <i class="fas fa-backward"></i>
+                </button>
+
+                <button class="btn ctrl-btn skip-btn" onclick="seek(10)">
+                    <i class="fas fa-forward"></i>
+                </button>
+
+                <div class="time" id="time">00:00 / 00:00 (0%)</div>
+
+                <div class="spacer"></div>
+                
+                <div style="position: relative;">
+                    <button class="btn ctrl-btn volume-btn" id="volumeBtn" onclick="toggleVolumeMenu()">
+                        <i class="fas fa-volume-up" id="volumeIcon"></i>
+                    </button>
+                    <div class="volume-slider-container" id="volumeMenu">
+                        <input type="range" min="0" max="100" value="100" class="volume-slider" id="volumeSlider">
+                    </div>
+                </div>
+
+                <div style="position: relative;">
+                    <button class="btn ctrl-btn jump-btn" id="jumpBtn" onclick="toggleMenu('jump')">
+                        <i class="fas fa-hand-point-right"></i>
+                    </button>
+                    <div class="menu jump-menu" id="jumpMenu">
+                        <input type="text" class="jump-input" id="jumpInput" placeholder="MM:SS or Seconds">
+                        <button class="btn" style="width: 100%; padding: 8px; margin-top: 5px; background: linear-gradient(135deg, #4CAF50, #8BC34A);" onclick="jumpToTime()">
+                            Jump
+                        </button>
+                    </div>
+                </div>
+
+                <div style="position: relative;">
+                    <button class="btn ctrl-btn" id="qualityBtn" onclick="toggleMenu('quality')">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                    <div class="menu" id="qualityMenu">
+                        <div class="menu-item active" data-quality="auto">Auto</div>
+                    </div>
+                </div>
+
+                <div style="position: relative;">
+                    <button class="btn ctrl-btn speed-btn" id="speedBtn" onclick="toggleMenu('speed')">
+                        <i class="fas fa-tachometer-alt"></i>
+                    </button>
+                    <div class="menu" id="speedMenu">
+                        <div class="menu-item" onclick="setSpeed(0.5)">0.5x</div>
+                        <div class="menu-item" onclick="setSpeed(0.75)">0.75x</div>
+                        <div class="menu-item active" onclick="setSpeed(1)">1x</div>
+                        <div class="menu-item" onclick="setSpeed(1.25)">1.25x</div>
+                        <div class="menu-item" onclick="setSpeed(1.5)">1.5x</div>
+                        <div class="menu-item" onclick="setSpeed(2)">2x</div>
+                    </div>
+                </div>
+
+                <button class="btn ctrl-btn" onclick="toggleFullscreen()">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="dot-loader">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <div>Loading...</div>
+        </div>
+
+        <div class="error" id="error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <h3>Playback Error</h3>
+            <p id="errorMsg">Unable to load video</p>
+            <br>
+            <button class="btn" onclick="retry()" style="padding: 10px 20px;">Retry</button>
+        </div>
+        
+        </div>
+
+    <script>
+        let video = document.getElementById('video');
+        let player = document.getElementById('player');
+        let currentUrl = null;
+        let controlsTimeout;
+        let hls = null;
+        let shakaPlayer = null;
+        let qualityLevels = [];
+        let contentType = 'unknown';
+        let currentDrmKeys = [];
+        let toastShown = false;
+        let lastClickTime = 0;
+        let clickTimer;
+        let isVolumeMenuOpen = false;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            setupEvents();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            currentUrl = urlParams.get('url');
+
+            if (!currentUrl) {
+                showError('No video URL provided in query string.');
+            } else {
+                loadVideo(currentUrl);
+            }
+        });
+
+        function setupEvents() {
+            // Video events
+            video.addEventListener('loadstart', () => showLoading());
+            video.addEventListener('canplay', hideLoading);
+            video.addEventListener('play', onPlay);
+            video.addEventListener('pause', onPause);
+            video.addEventListener('timeupdate', updateProgress);
+            video.addEventListener('loadedmetadata', updateTime);
+            video.addEventListener('error', () => showError('Video loading failed'));
+
+            // Control events
+            document.getElementById('playBtn').addEventListener('click', togglePlay);
+            document.getElementById('progress').addEventListener('click', onProgressClick);
+            
+            // Volume control events
+            const volumeSlider = document.getElementById('volumeSlider');
+            volumeSlider.addEventListener('input', updateVolume);
+            video.volume = volumeSlider.value / 100; // Set initial volume
+            video.muted = false; // Ensure not muted initially
+            
+            // Auto-hide controls (Updated)
+            player.addEventListener('mousemove', showControls);
+            player.addEventListener('touchstart', handleTouch); // Use handleTouch for controls and double-tap
+
+            // Keyboard
+            document.addEventListener('keydown', handleKeyboard);
+
+            // Click outside menu (Updated for Volume menu)
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest('#speedBtn')) {
+                    document.getElementById('speedMenu').style.display = 'none';
+                }
+                if (!e.target.closest('#qualityBtn')) {
+                    document.getElementById('qualityMenu').style.display = 'none';
+                }
+                if (!e.target.closest('#jumpBtn') && !e.target.closest('#jumpInput')) {
+                    document.getElementById('jumpMenu').style.display = 'none';
+                }
+                // Close volume menu if click is outside
+                if (!e.target.closest('#volumeBtn') && !e.target.closest('#volumeMenu')) {
+                     closeVolumeMenu();
+                }
+            });
+            
+             // Prevent controls from hiding while typing in jump input
+            document.getElementById('jumpInput').addEventListener('focus', () => clearTimeout(controlsTimeout));
+            document.getElementById('jumpInput').addEventListener('blur', () => showControls());
+        }
+        
+        // --- NEW/UPDATED FUNCTIONS ---
+
+        // 1. Controls auto-hide logic (Updated)
+        function showControls() {
+            player.classList.add('show-controls');
+            clearTimeout(controlsTimeout);
+            
+            // Auto-hide after 5 seconds of inactivity if video is playing
+            controlsTimeout = setTimeout(() => {
+                if (!video.paused) {
+                    player.classList.remove('show-controls');
+                }
+            }, 5000); // 5000ms = 5 seconds
+        }
+        
+        function hideControls() {
+             clearTimeout(controlsTimeout);
+             player.classList.remove('show-controls');
+        }
+
+        // 2. Double-click/tap skip logic (left/right side)
+        function handleTouch(e) {
+            showControls(); // Show controls on touch
+            
+            // Check for double-tap
+            const currentTime = new Date().getTime();
+            const tapDelay = 300; // max time between taps for a double-tap
+            
+            if (currentTime - lastClickTime < tapDelay) {
+                e.preventDefault(); // Prevent accidental zoom on double-tap
+                
+                const rect = video.getBoundingClientRect();
+                const x = e.touches[0].clientX;
+                const area = rect.width / 3;
+
+                // Stop the single-tap timer if it was running
+                clearTimeout(clickTimer);
+
+                if (x < rect.left + area) {
+                    // Left third: Seek backward
+                    handleSkip(-10, document.getElementById('skipLeft'));
+                } else if (x > rect.right - area) {
+                    // Right third: Seek forward
+                    handleSkip(10, document.getElementById('skipRight'));
+                } else {
+                    // Middle third: Toggle play (handled by single-tap timeout if not double-tapped)
+                     // Re-initialize lastClickTime for next tap
+                     lastClickTime = 0; 
+                     return; 
+                }
+                
+                // Reset last click time to prevent triple-tap being processed as double-tap
+                lastClickTime = 0; 
+            } else {
+                // First tap: Set timer to process as single tap (toggle play) if no second tap occurs
+                lastClickTime = currentTime;
+                
+                // Single-tap: Toggle Play (after delay to check for double-tap)
+                clickTimer = setTimeout(() => {
+                     // Check if the click happened on the video element itself (middle area)
+                     const rect = video.getBoundingClientRect();
+                     const x = e.touches[0].clientX;
+                     const area = rect.width / 3;
+                     
+                     // Only toggle play if in the middle third
+                     if (x >= rect.left + area && x <= rect.right - area) {
+                         togglePlay();
+                     }
+                }, tapDelay);
+            }
+        }
+        
+        // Double-click handler for desktop (re-implementing the core logic from handleTouch)
+        video.addEventListener('dblclick', function(e) {
+            const rect = video.getBoundingClientRect();
+            const x = e.clientX;
+            const area = rect.width / 3;
+
+            if (x < rect.left + area) {
+                // Left third: Seek backward
+                handleSkip(-10, document.getElementById('skipLeft'));
+            } else if (x > rect.right - area) {
+                // Right third: Seek forward
+                handleSkip(10, document.getElementById('skipRight'));
+            }
+        });
+        
+        // Handles the actual skip and shows the visual feedback
+        function handleSkip(seconds, overlayElement) {
+            seek(seconds);
+            
+            // Show skip overlay
+            overlayElement.classList.add('active');
+            
+            // Hide skip overlay after a short duration
+            setTimeout(() => {
+                overlayElement.classList.remove('active');
+            }, 500);
+        }
+        
+        // 3. Volume Button & Slider
+        function toggleVolumeMenu() {
+             const menu = document.getElementById('volumeMenu');
+             isVolumeMenuOpen = !isVolumeMenuOpen;
+             menu.style.display = isVolumeMenuOpen ? 'block' : 'none';
+             
+             // Close other menus
+             document.getElementById('speedMenu').style.display = 'none';
+             document.getElementById('qualityMenu').style.display = 'none';
+             document.getElementById('jumpMenu').style.display = 'none';
+             
+             showControls(); // Keep controls visible while slider is open
+        }
+        
+        function closeVolumeMenu() {
+            document.getElementById('volumeMenu').style.display = 'none';
+            isVolumeMenuOpen = false;
+        }
+        
+        function updateVolume(e) {
+            const newVolume = e.target.value / 100;
+            video.volume = newVolume;
+            
+            const volumeIcon = document.getElementById('volumeIcon');
+            if (newVolume === 0) {
+                 volumeIcon.className = 'fas fa-volume-off';
+            } else if (newVolume < 0.5) {
+                 volumeIcon.className = 'fas fa-volume-down';
+            } else {
+                 volumeIcon.className = 'fas fa-volume-up';
+            }
+        }
+
+        // 4. Progress Percentage & Time Display (Update)
+        function updateProgress() {
+            const progress = (video.currentTime / video.duration) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+            
+            // Update marker position
+            document.getElementById('progressMarker').style.left = progress + '%';
+            
+            updateTime();
+        }
+
+        function updateTime() {
+            if (isNaN(video.duration)) {
+                 document.getElementById('time').textContent = '00:00 / 00:00';
+                 return;
+            }
+            
+            const current = formatTime(video.currentTime);
+            const total = formatTime(video.duration);
+            const progressPercent = ((video.currentTime / video.duration) * 100).toFixed(0);
+            
+            // Display: Current / Total (Percentage)
+            document.getElementById('time').textContent = `${current} / ${total} (${progressPercent}%)`;
+        }
+        
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        // 5. Play/Pause class toggle (Updated)
+        function onPlay() {
+            document.getElementById('playBtn').innerHTML = '<i class="fas fa-pause"></i>';
+            player.classList.remove('paused');
+            showControls(); // Show controls immediately on play
+            
+            if (!toastShown) {
+                // Ensure the channelToast element exists before calling the function
+                // Note: The toast HTML is commented out in your body, but this logic is retained if you uncomment it.
+                // if(document.getElementById('channelToast')) {
+                //     setTimeout(showChannelToast, 3000); // Show after 3 seconds of playing
+                // }
+                toastShown = true;
+            }
+        }
+
+        function onPause() {
+            document.getElementById('playBtn').innerHTML = '<i class="fas fa-play"></i>';
+            player.classList.add('paused');
+            showControls(); // Keep controls visible when paused
+        }
+        
+        // --- EXISTING CORE FUNCTIONS (modified for context) ---
+
+        // (loadVideo, loadDRMVideo, setupDRMQualityMenu, setDRMQuality, loadHLSVideo, setupHLSQualityMenu, setHLSQuality, updateActiveQuality, updateContentTypeDisplay, togglePlay, onProgressClick, seek, setSpeed, toggleMenu, jumpToTime, toggleFullscreen, openTelegram, showLoading, hideLoading, showError, retry, showChannelToast, hideToast, handleKeyboard)
+        
+        // ... (Paste all other original functions here, like loadVideo, loadDRMVideo, etc., to make the file complete) ...
+        
+        async function loadVideo(url) {
+            try {
+                showLoading();
+                showControls(); // Ensure controls are visible on load
+
+                const isM3U8 = url.includes('.m3u8');
+                const isClassplusUrl = url.startsWith('https://');
+
+                let finalUrl = url;
+
+                if (isClassplusUrl) {
+                    if (url.includes('/drm')) {
+                        updateContentTypeDisplay('drm');
+                        const drmApiUrl = `https://itsvchoudharydrm.vercel.app/api?url=${encodeURIComponent(url)}&auth=@veerjaatoffline`;
+                        const drmResponse = await fetch(drmApiUrl);
+                        const drmData = await drmResponse.json();
+
+                        if (!drmData.KEYS || !drmData.MPD) {
+                            showError('❌ DRM data missing - cannot play video.');
+                            hideLoading();
+                            return;
+                        }
+
+                        await loadDRMVideo(drmData.MPD, drmData.KEYS);
+                    } else {
+                        updateContentTypeDisplay('hls');
+                        const signApiUrl = `/get_signed_url?url=${encodeURIComponent(url)}`;
+                        const signResponse = await fetch(signApiUrl);
+                        const signData = await signResponse.json();
+
+                        if (!signData.signed_url) {
+                            showError('❌ Failed to get signed URL.');
+                            hideLoading();
+                            return;
+                        }
+
+                        finalUrl = signData.signed_url;
+                        if (isM3U8) {
+                            await loadHLSVideo(finalUrl);
+                        } else {
+                            video.src = finalUrl;
+                        }
+                    }
+                } else {
+                    updateContentTypeDisplay('direct');
+                    if (isM3U8) {
+                        await loadHLSVideo(finalUrl);
+                    } else {
+                        video.src = finalUrl;
+                    }
+                }
+
+                try {
+                    await video.play();
+                } catch (e) {
+                    console.log('Auto-play prevented');
+                }
+
+                hideLoading();
+
+            } catch (error) {
+                showError('Network or Playback Error: ' + error.message);
+            }
+        }
+
+        async function loadDRMVideo(mpdUrl, keys) {
+            try {
+                console.log('Loading DRM content:', mpdUrl);
+                console.log('DRM Keys:', keys);
+
+                shaka.polyfill.installAll();
+
+                if (!shaka.Player.isBrowserSupported()) {
+                    showError('DRM content not supported in this browser');
+                    return;
+                }
+
+                if (hls) {
+                    hls.destroy();
+                    hls = null;
+                }
+                
+                if (!shakaPlayer) {
+                    shakaPlayer = new shaka.Player(video);
+                }
+
+                shakaPlayer.configure({
+                    drm: {
+                        clearKeys: {}
+                    }
+                });
+
+                if (keys && keys.length > 0) {
+                    let clearKeys = {};
+                    keys.forEach(key => {
+                        const [keyId, keyValue] = key.split(':');
+                        clearKeys[keyId] = keyValue;
+                    });
+                    
+                    shakaPlayer.configure({
+                        drm: {
+                            clearKeys: clearKeys
+                        }
+                    });
+                    currentDrmKeys = keys;
+                }
+
+                shakaPlayer.addEventListener('variantchanged', () => {
+                    setupDRMQualityMenu();
+                });
+
+                await shakaPlayer.load(mpdUrl);
+                console.log('DRM video loaded successfully');
+
+                setupDRMQualityMenu();
+
+            } catch (error) {
+                console.error('DRM loading error:', error);
+                showError('Failed to load DRM content: ' + error.message);
+            }
+        }
+
+        function setupDRMQualityMenu() {
+            if (!shakaPlayer) return;
+
+            const tracks = shakaPlayer.getVariantTracks();
+            const qualityMenu = document.getElementById('qualityMenu');
+            qualityMenu.innerHTML = '<div class="menu-item active" onclick="setDRMQuality(-1)">Auto</div>';
+
+            const uniqueHeights = [...new Set(tracks.map(track => track.height))].sort((a, b) => b - a);
+
+            uniqueHeights.forEach(height => {
+                const menuItem = document.createElement('div');
+                menuItem.className = 'menu-item';
+                menuItem.onclick = (e) => setDRMQuality(height, e.target);
+                menuItem.textContent = `${height}p`;
+                qualityMenu.appendChild(menuItem);
+            });
+        }
+
+        function setDRMQuality(height, targetElement) {
+            if (!shakaPlayer) return;
+
+            if (height === -1) {
+                shakaPlayer.configure({ abr: { enabled: true } });
+            } else {
+                shakaPlayer.configure({ abr: { enabled: false } });
+                const tracks = shakaPlayer.getVariantTracks().filter(track => track.height === height);
+                if (tracks.length > 0) {
+                    shakaPlayer.selectVariantTrack(tracks[0], true);
+                }
+            }
+
+            document.querySelectorAll('#qualityMenu .menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            (targetElement || document.querySelector('#qualityMenu .menu-item:first-child')).classList.add('active');
+            document.getElementById('qualityMenu').style.display = 'none';
+        }
+
+        async function loadHLSVideo(url) {
+            if (shakaPlayer) {
+                await shakaPlayer.destroy();
+                shakaPlayer = null;
+            }
+
+            if (Hls.isSupported()) {
+                if (hls) {
+                    hls.destroy();
+                }
+                hls = new Hls({
+                    enableWorker: true,
+                    lowLatencyMode: false,
+                    xhrSetup: function(xhr, url) {
+                        xhr.withCredentials = false;
+                    },
+                    fetchSetup: function(context, initParams) {
+                        return new Request(context.url, {
+                            ...initParams,
+                            mode: 'cors',
+                            credentials: 'omit'
+                        });
+                    }
+                });
+                hls.loadSource(url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+                    console.log('HLS Manifest loaded, found ' + data.levels.length + ' quality level(s)');
+                    setupHLSQualityMenu(data.levels);
+                });
+                hls.on(Hls.Events.LEVEL_SWITCHED, function (event, data) {
+                    console.log('HLS Level switched to: ' + data.level);
+                    updateActiveQuality(data.level);
+                });
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    console.error('HLS Error:', data);
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                showError('Fatal error occurred');
+                                break;
+                        }
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+            } else {
+                showError('HLS not supported in this browser');
+            }
+        }
+
+        function setupHLSQualityMenu(levels) {
+            const qualityMenu = document.getElementById('qualityMenu');
+            qualityMenu.innerHTML = '<div class="menu-item active" onclick="setHLSQuality(-1)">Auto</div>';
+
+            levels.forEach((level, index) => {
+                const height = level.height || 'Unknown';
+                const menuItem = document.createElement('div');
+                menuItem.className = 'menu-item';
+                menuItem.onclick = () => setHLSQuality(index);
+                menuItem.textContent = `${height}p`;
+                qualityMenu.appendChild(menuItem);
+            });
+
+            qualityLevels = levels;
+        }
+
+        function setHLSQuality(levelIndex) {
+            if (hls) {
+                hls.currentLevel = levelIndex; // -1 for auto
+            }
+
+            document.querySelectorAll('#qualityMenu .menu-item').forEach((item, index) => {
+                item.classList.remove('active');
+                if ((levelIndex === -1 && index === 0) || (levelIndex === index - 1)) {
+                    item.classList.add('active');
+                }
+            });
+
+            document.getElementById('qualityMenu').style.display = 'none';
+        }
+
+        function updateActiveQuality(level) {
+            document.querySelectorAll('#qualityMenu .menu-item').forEach((item, index) => {
+                item.classList.remove('active');
+                if (level === -1 && index === 0) {
+                    item.classList.add('active');
+                } else if (level === index - 1) {
+                    item.classList.add('active');
+                }
+            });
+        }
+        
+        function updateContentTypeDisplay(type) {
+            const contentTypeEl = document.getElementById('contentType');
+            contentType = type;
+            if (type === 'drm') {
+                contentTypeEl.textContent = 'DRM';
+                contentTypeEl.style.display = 'block';
+            } else if (type === 'hls') {
+                contentTypeEl.textContent = 'HLS';
+                contentTypeEl.style.display = 'block';
+            } else {
+                contentTypeEl.style.display = 'none';
+            }
+        }
+
+        function togglePlay() {
+            if (video.paused) {
+                video.play();
+            } else {
+                video.pause();
+            }
+        }
+
+        function onProgressClick(e) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            video.currentTime = percent * video.duration;
+            showControls(); // Reshow controls after seeking
+        }
+
+        function seek(seconds) {
+            video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
+            showControls(); // Reshow controls after skipping
+        }
+
+        function setSpeed(speed) {
+            video.playbackRate = speed;
+
+            document.querySelectorAll('#speedMenu .menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+
+            event.target.classList.add('active');
+            document.getElementById('speedMenu').style.display = 'none';
+        }
+
+        function toggleMenu(type) {
+            const menu = document.getElementById(type + 'Menu');
+            
+            // Close other menus
+            if (type !== 'speed') document.getElementById('speedMenu').style.display = 'none';
+            if (type !== 'quality') document.getElementById('qualityMenu').style.display = 'none';
+            if (type !== 'jump') document.getElementById('jumpMenu').style.display = 'none';
+            closeVolumeMenu();
+            
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+            
+            if (type === 'jump' && menu.style.display === 'block') {
+                 document.getElementById('jumpInput').focus();
+            } else {
+                 document.getElementById('jumpInput').blur();
+            }
+            
+            showControls(); // Keep controls visible while menu is open
+        }
+        
+        /* NEW FUNCTION: Jump to Time */
+        function jumpToTime() {
+            const timeInput = document.getElementById('jumpInput');
+            const timeString = timeInput.value.trim();
+
+            if (!timeString) {
+                alert('Please enter a time to jump to.');
+                return;
+            }
+
+            let targetSeconds = 0;
+
+            // Check for MM:SS format
+            const parts = timeString.split(':');
+            if (parts.length === 2) {
+                const minutes = parseInt(parts[0]);
+                const seconds = parseInt(parts[1]);
+                if (!isNaN(minutes) && !isNaN(seconds)) {
+                    targetSeconds = (minutes * 60) + seconds;
+                }
+            } else {
+                // Assume seconds format
+                targetSeconds = parseFloat(timeString);
+            }
+
+            if (isNaN(targetSeconds) || targetSeconds < 0 || targetSeconds > video.duration) {
+                alert(`Invalid time format or time out of range (0 to ${formatTime(video.duration)}). Use seconds or MM:SS.`);
+                return;
+            }
+            
+            // Perform the jump
+            video.currentTime = targetSeconds;
+            
+            // Hide the menu and clear the input
+            document.getElementById('jumpMenu').style.display = 'none';
+            timeInput.value = '';
+            showControls(); // Re-show controls after jump
+        }
+        /* END NEW FUNCTION */
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                player.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function openTelegram() {
+            window.open('https://t.me/veerjaatoffline', '_blank');
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            hideLoading();
+            document.getElementById('errorMsg').textContent = message;
+            document.getElementById('error').style.display = 'block';
+        }
+
+        function retry() {
+            document.getElementById('error').style.display = 'none';
+            if (currentUrl) {
+                loadVideo(currentUrl);
+            }
+        }
+
+        function showChannelToast() {
+            const toast = document.getElementById('channelToast');
+            if (!toast) return;
+
+            toast.classList.add('show');
+
+            setTimeout(() => {
+                hideToast();
+            }, 8000);
+
+            toast.addEventListener('click', function (e) {
+                if (!e.target.closest('.close-btn')) {
+                    openTelegram();
+                    hideToast();
+                }
+            });
+        }
+
+        function hideToast() {
+            const toast = document.getElementById('channelToast');
+            if (toast) {
+                 toast.classList.remove('show');
+            }
+        }
+
+        function handleKeyboard(e) {
+            if (e.target.id === 'jumpInput') {
+                 if (e.key === 'Enter') {
+                    e.preventDefault();
+                    jumpToTime();
+                 }
+                 return;
+            }
+            
+            if (e.target.tagName.toLowerCase() === 'input') return;
+
+            showControls(); // Show controls on keyboard interaction
+
+            switch (e.key) {
+                case ' ':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+                case 'f':
+                    e.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    seek(-10);
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    seek(10);
+                    break;
+                case 'm':
+                    e.preventDefault();
+                    video.muted = !video.muted;
+                    document.getElementById('volumeSlider').value = video.muted ? 0 : (video.volume * 100);
+                    updateVolume({ target: document.getElementById('volumeSlider') });
+                    break;
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function () {
+            if (hls) {
+                hls.destroy();
+            }
+            if (shakaPlayer) {
+                shakaPlayer.destroy();
+            }
+        });
+    </script>
+</body>
+
+</html>
